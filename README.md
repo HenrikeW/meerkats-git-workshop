@@ -1,1 +1,3 @@
-This is a test repo for the Meerkats team.
+# Test repository
+
+This is a test repository for the Meerkats team.
