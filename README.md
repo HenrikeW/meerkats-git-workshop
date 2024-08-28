@@ -1,4 +1,4 @@
-# Test repository
+# Git workshop repository
 
 This is a test repository for the Meerkats team.
 The primary goal of this project is to experiment with Git and Conventional Commits.
