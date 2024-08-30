@@ -3,7 +3,7 @@
 set -u
 set -e
 
-migration_dir=$(dirname "$database")/database.d
+migration_dir=$(dirname "$database")/initdb.d
 
 for migration in "$migration_dir"/????-*.sql
 do
