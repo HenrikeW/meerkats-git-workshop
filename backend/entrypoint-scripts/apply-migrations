@@ -1,0 +1,78 @@
+#!/bin/sh
+
+set -u
+set -e
+
+migration_dir=$(dirname "$database")/database.d
+
+for migration in "$migration_dir"/????-*.sql
+do
+	if [ ! -e "$migration" ]; then
+		break
+	fi
+
+	migration_hash=$( md5sum "$migration" | cut -d ' ' -f 1 )
+	migration_name=$(basename "$migration")
+	migration_seq=${migration_name%%-*}
+
+        # The 0000 migration creates the "migration" table.  If the
+        # current migration is the 0000 migration, we need to check for
+        # the existance of that table to determine whether the migration
+        # should be applied or not.
+	skip_apply=false
+	if [ "$migration_seq" = 0000 ]; then
+		migration_table=$(
+			sqlite3 \
+				"$database" <<-'END_CHECK_TABLE'
+				SELECT name
+				FROM sqlite_master
+				WHERE type = 'table' AND name = 'migration'
+			END_CHECK_TABLE
+		)
+
+		if [ "$migration_table" = migration ]; then
+			skip_apply=true
+		fi
+	fi
+
+	if "$skip_apply" || [ "$migration_seq" != 0000 ]; then
+		stored_hash=$(
+			sqlite3 \
+				-cmd ".parameter set :name '$migration_name'" \
+				"$database" <<-'END_VERIFY'
+				SELECT hash
+				FROM migration
+				WHERE name = :name
+			END_VERIFY
+		)
+
+		if [ -n "$stored_hash" ]; then
+			if [ "$stored_hash" != "$migration_hash" ]; then
+				printf 'Migration "%s" was changed after it was applied\n' \
+					"$migration_name" >&2
+				printf 'Expected MD5 "%s", got "%s"\n' \
+					"$migration_hash" "$stored_hash" >&2
+				exit 1
+			fi
+			skip_apply=true
+		fi
+	fi
+
+	if "$skip_apply"; then
+		printf 'Skipping migration "%s"\n' "$migration_name" >&2
+		continue
+	fi
+
+	printf 'Applying migration "%s"\n' "$migration_name" >&2
+	sqlite3 \
+		-cmd '.bail on' \
+		-cmd ".parameter set :hash '$migration_hash'" \
+		-cmd ".parameter set :name '$migration_name'" \
+		"$database" <<-END_MIGRATION
+		BEGIN TRANSACTION;
+		.read '$migration'
+		INSERT INTO migration (hash,name)
+			VALUES(:hash,:name);
+		COMMIT;
+	END_MIGRATION
+done
