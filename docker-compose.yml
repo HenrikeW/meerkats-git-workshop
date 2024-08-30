@@ -3,6 +3,7 @@ services:
     build: backend
     volumes:
       - backend-volume:/vol
+    env_file: backend/backend.env
 
 volumes:
   backend-volume:
