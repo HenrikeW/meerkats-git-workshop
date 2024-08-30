@@ -1,0 +1,95 @@
+#!/bin/sh
+
+set -u
+set -e
+
+for migration in initdb.d/????-*.sql
+do
+	if [ ! -e "$migration" ]; then
+		break
+	fi
+
+	migration_hash=$( md5sum "$migration" | cut -d ' ' -f 1 )
+	migration_name=$(basename "$migration")
+	migration_seq=${migration_name%%-*}
+
+	# The 0000 migration creates the "migration" table.  If the
+	# current migration is the 0000 migration, we need to check for
+	# the existance of that table to determine whether the migration
+	# should be validated or not.  We can not validate migration
+	# 0000 if it has not been applied.
+	skip_validate=false
+	if [ "$migration_seq" = 0000 ]; then
+		migration_table=$(
+			sqlite3 \
+				"$database" <<-'END_CHECK_TABLE'
+				SELECT name
+				FROM sqlite_master
+				WHERE type = 'table' AND name = 'migration'
+			END_CHECK_TABLE
+		)
+
+		if [ -z "$migration_table" ]; then
+			skip_validate=true
+		fi
+	fi
+
+	skip_apply=false
+	if "$skip_validate"; then
+		:	# Do nothing.
+	else
+		# We get here if 
+		# 1. We are dealing with migration 0000 and
+		#    it has been applied, or
+		# 2. We are dealing with some later migration.
+
+		# Fetch the stored MD5 hash from the "migration" table.
+		stored_hash=$(
+			sqlite3 \
+				-cmd ".parameter set :name '$migration_name'" \
+				"$database" <<-'END_FETCH_HASH'
+				SELECT hash
+				FROM migration
+				WHERE name = :name
+			END_FETCH_HASH
+		)
+
+		# If the stored hash could be fetched and if it's the
+		# same as the MD5 hash of the migration file, then
+		# we can skip this migration.  If it was fetched but
+		# different from the hash of the migration file, then
+		# the migration file has been changed after it was last
+		# applied to the database and manual fix of the database
+		# is needed.  In other cases, the migration is applied.
+		if [ -n "$stored_hash" ]; then
+			if [ "$stored_hash" != "$migration_hash" ]; then
+				printf 'Migration "%s" was changed after it was applied\n' \
+					"$migration_name" >&2
+				printf 'Expected MD5 "%s", got "%s"\n' \
+					"$migration_hash" "$stored_hash" >&2
+
+				exit 1
+			fi
+			skip_apply=true
+		fi
+	fi
+
+	if "$skip_apply"; then
+		printf 'Skipping application of migration "%s"\n' \
+			"$migration_name" >&2
+	else
+		printf 'Applying migration "%s"\n' \
+			"$migration_name" >&2
+
+		sqlite3 \
+			-cmd '.bail on' \
+			-cmd ".parameter set :hash '$migration_hash'" \
+			-cmd ".parameter set :name '$migration_name'" \
+			"$database" <<-END_MIGRATION
+			BEGIN TRANSACTION;
+			.read '$migration'
+			INSERT INTO migration (hash,name) VALUES(:hash,:name);
+			COMMIT;
+		END_MIGRATION
+	fi
+done
