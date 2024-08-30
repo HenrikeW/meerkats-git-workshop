@@ -1,0 +1,8 @@
+services:
+  backend:
+    build: backend
+    volumes:
+      - backend-volume:/vol
+
+volumes:
+  backend-volume:
