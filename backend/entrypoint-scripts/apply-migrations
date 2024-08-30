@@ -37,10 +37,12 @@ do
 	fi
 
 	skip_apply=false
-	if ! "$skip_validate"; then
+	if "$skip_validate"; then
+		:	# Do nothing.
+	else
 		# We get here if 
 		# 1. We are dealing with migration 0000 and
-		#    it has been applied.
+		#    it has been applied, or
 		# 2. We are dealing with some later migration.
 
 		# Fetch the stored MD5 hash from the "migration" table.
@@ -67,6 +69,7 @@ do
 					"$migration_name" >&2
 				printf 'Expected MD5 "%s", got "%s"\n' \
 					"$migration_hash" "$stored_hash" >&2
+
 				exit 1
 			fi
 			skip_apply=true
@@ -74,19 +77,21 @@ do
 	fi
 
 	if "$skip_apply"; then
-		printf 'Skipping migration "%s"\n' "$migration_name" >&2
-		continue
-	fi
+		printf 'Skipping application of migration "%s"\n' \
+			"$migration_name" >&2
+	else
+		printf 'Applying migration "%s"\n' \
+			"$migration_name" >&2
 
-	printf 'Applying migration "%s"\n' "$migration_name" >&2
-	sqlite3 \
-		-cmd '.bail on' \
-		-cmd ".parameter set :hash '$migration_hash'" \
-		-cmd ".parameter set :name '$migration_name'" \
-		"$database" <<-END_MIGRATION
-		BEGIN TRANSACTION;
-		.read '$migration'
-		INSERT INTO migration (hash,name) VALUES(:hash,:name);
-		COMMIT;
-	END_MIGRATION
+		sqlite3 \
+			-cmd '.bail on' \
+			-cmd ".parameter set :hash '$migration_hash'" \
+			-cmd ".parameter set :name '$migration_name'" \
+			"$database" <<-END_MIGRATION
+			BEGIN TRANSACTION;
+			.read '$migration'
+			INSERT INTO migration (hash,name) VALUES(:hash,:name);
+			COMMIT;
+		END_MIGRATION
+	fi
 done
