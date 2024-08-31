@@ -1,1 +1,1 @@
-CREATE TABLE test (id INT);
+CREATE TABLE test (id INTEGER);
