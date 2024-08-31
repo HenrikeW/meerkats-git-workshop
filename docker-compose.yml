@@ -1,0 +1,11 @@
+services:
+  backend:
+    build:
+      context: backend
+    volumes:
+      - backend-volume:/vol
+      - ./backend/initdb.d:/app/initdb.d:ro
+    env_file: backend/backend.env
+
+volumes:
+  backend-volume:

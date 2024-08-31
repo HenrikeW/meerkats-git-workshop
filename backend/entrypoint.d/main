@@ -1,0 +1,13 @@
+#!/bin/sh
+
+if ! ./entrypoint.d/restore-database; then
+	echo 'Database restore failed' >&2
+	exit 1
+fi
+
+if ! ./entrypoint.d/apply-migrations; then
+	echo 'Migrations failed' >&2
+	exit 1
+fi
+
+exec "$@"
