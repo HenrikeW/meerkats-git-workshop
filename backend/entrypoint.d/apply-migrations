@@ -1,7 +1,23 @@
 #!/bin/sh
 
-set -u
-set -e
+set -e -u
+
+# Work on a temporary copy of the database.
+if [ -r "$database" ]; then
+	cp "$database" "$database.tmp"
+fi
+
+# Check whether the "migration" table exists in the database.  It's ok
+# if it doesn't exist, if we're running the 0000 migration, which adds
+# it.
+migration_table=$(
+	sqlite3 \
+		"$database.tmp" <<-'END_CHECK_MIGRATION_TABLE'
+		SELECT name
+		FROM sqlite_master
+		WHERE type = 'table' AND name = 'migration'
+	END_CHECK_MIGRATION_TABLE
+)
 
 for migration in migration.d/????-*.sql
 do
@@ -20,15 +36,6 @@ do
 	# 0000 if it has not been applied.
 	skip_validate=false
 	if [ "$migration_seq" = 0000 ]; then
-		migration_table=$(
-			sqlite3 \
-				"$database" <<-'END_CHECK_TABLE'
-				SELECT name
-				FROM sqlite_master
-				WHERE type = 'table' AND name = 'migration'
-			END_CHECK_TABLE
-		)
-
 		if [ -z "$migration_table" ]; then
 			skip_validate=true
 		fi
@@ -47,11 +54,11 @@ do
 		stored_hash=$(
 			sqlite3 \
 				-cmd ".parameter set :name '$migration_name'" \
-				"$database" <<-'END_FETCH_HASH'
+				"$database.tmp" <<-'END_FETCH_MIGRATION_HASH'
 				SELECT hash
 				FROM migration
 				WHERE name = :name
-			END_FETCH_HASH
+			END_FETCH_MIGRATION_HASH
 		)
 
 		# If the stored hash could be fetched and if it's the
@@ -60,7 +67,8 @@ do
 		# different from the hash of the migration file, then
 		# the migration file has been changed after it was last
 		# applied to the database and manual fix of the database
-		# is needed.  In other cases, the migration is applied.
+		# (or of the migration) is needed.  In other cases, the
+		# migration is applied.
 		if [ -n "$stored_hash" ]; then
 			if [ "$stored_hash" != "$migration_hash" ]; then
 				printf 'Migration "%s" was changed after it was applied\n' \
@@ -85,7 +93,7 @@ do
 			-cmd '.bail on' \
 			-cmd ".parameter set :hash '$migration_hash'" \
 			-cmd ".parameter set :name '$migration_name'" \
-			"$database" <<-END_MIGRATION
+			"$database.tmp" <<-END_MIGRATION
 			BEGIN TRANSACTION;
 			.read '$migration'
 			INSERT INTO migration (hash,name) VALUES(:hash,:name);
@@ -93,3 +101,6 @@ do
 		END_MIGRATION
 	fi
 done
+
+# Move the temprorary database in place.
+mv "$database.tmp" "$database"
