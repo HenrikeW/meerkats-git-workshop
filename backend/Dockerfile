@@ -4,7 +4,10 @@ WORKDIR /app
 
 # Build project here.
 # Produces "backend-server".
-RUN printf '%s\n' '#!/bin/sh -x' 'sleep infinity' >backend-server
+RUN cat >backend-server <<-'END_DUMMY_SERVER'
+	#!/bin/sh -x
+	sleep infinity
+	END_DUMMY_SERVER
 RUN chmod +x backend-server
 
 FROM alpine:3.20 AS develop
