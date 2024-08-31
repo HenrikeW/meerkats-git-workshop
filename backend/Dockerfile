@@ -1,3 +1,5 @@
+# ----------------------------------------------------------------------
+# ---- Initial build
 FROM golang:alpine3.20 AS builder
 
 WORKDIR /app
@@ -10,14 +12,17 @@ RUN cat >backend-server <<-'END_DUMMY_SERVER'
 	END_DUMMY_SERVER
 RUN chmod +x backend-server
 
-FROM alpine:3.20 AS develop
+# ----------------------------------------------------------------------
+# ---- Service runtime
+FROM alpine:3.20 AS service
 
 WORKDIR /app
 
-RUN apk add --no-cache \
-	sqlite
+RUN apk add --no-cache sqlite
 
 COPY entrypoint.d ./entrypoint.d/
+RUN chmod +x ./entrypoint.d/*
+
 COPY migration.d ./migration.d/
 
 COPY --from=builder /app/backend-server ./
