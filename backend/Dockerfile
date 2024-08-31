@@ -15,6 +15,7 @@ RUN apk add --no-cache \
 	sqlite
 
 COPY entrypoint.d ./entrypoint.d/
+COPY migration.d ./migration.d/
 
 COPY --from=builder /app/backend-server ./
 

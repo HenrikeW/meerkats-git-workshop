@@ -3,7 +3,7 @@
 set -u
 set -e
 
-for migration in initdb.d/????-*.sql
+for migration in migration.d/????-*.sql
 do
 	if [ ! -e "$migration" ]; then
 		break
