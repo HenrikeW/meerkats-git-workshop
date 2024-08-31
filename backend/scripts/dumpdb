@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# This utility script dumps the contents of the live backend database to
+# standard output as a series of SQL statements.  You would typically
+# use this to back up the database or to create a database dump to
+# restore from:
+#
+#	./scripts/dumpdb >db-backup.sql
+
+docker compose exec -T backend sh -c 'sqlite3 "$database" .dump'
