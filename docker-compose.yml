@@ -9,6 +9,8 @@ services:
   
   frontend: 
     build:
+      args:
+        UID: ${UID:-1000}
       context: frontend
     volumes:
       - ./frontend:/app
