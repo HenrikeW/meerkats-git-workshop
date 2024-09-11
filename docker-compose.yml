@@ -6,6 +6,15 @@ services:
       - backend-volume:/vol
       - ./backend/initdb.d:/app/initdb.d:ro
     env_file: backend/backend.env
+  
+  frontend: 
+    build:
+      context: frontend
+    volumes:
+      - ./frontend:/app
+    env_file: frontend/frontend.env
+    ports: 
+      - "5173:5173"
 
 volumes:
   backend-volume:
