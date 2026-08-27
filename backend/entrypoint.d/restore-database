@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -u
+
+db_dump=./initdb.d/init.sql
+
+if [ -f "$database" ]; then
+	printf 'Database found at "%s", skipping restore\n' \
+		"$database" >&2
+	exit
+fi
+
+if [ ! -r "$db_dump" ]; then
+	printf 'No database dump found at "%s", skipping restore\n' \
+		"$db_dump" >&2
+	exit
+fi
+
+printf 'Restoring database from "%s"\n' "$db_dump" >&2
+sqlite3 "$database" <"$db_dump"
